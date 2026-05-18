@@ -1,35 +1,55 @@
 package migrate
 
-import "fmt"
-
-// BackendType identifies a supported secret backend.
-type BackendType string
-
-const (
-	Backend1Password BackendType = "1password"
-	BackendDoppler   BackendType = "doppler"
-	BackendVault     BackendType = "vault"
+import (
+	"fmt"
+	"strings"
 )
 
-// String returns the string representation of the backend type.
-func (b BackendType) String() string {
-	return string(b)
-}
+// BackendType represents a supported secret backend.
+type BackendType int
+
+const (
+	Backend1Password BackendType = iota
+	BackendDoppler
+	BackendVault
+	BackendBitwarden
+	BackendDryRun
+)
 
 // KnownBackends lists all supported backend identifiers.
-var KnownBackends = []BackendType{
-	Backend1Password,
-	BackendDoppler,
-	BackendVault,
+var KnownBackends = []string{"1password", "doppler", "vault", "bitwarden", "dry-run"}
+
+func (b BackendType) String() string {
+	switch b {
+	case Backend1Password:
+		return "1password"
+	case BackendDoppler:
+		return "doppler"
+	case BackendVault:
+		return "vault"
+	case BackendBitwarden:
+		return "bitwarden"
+	case BackendDryRun:
+		return "dry-run"
+	default:
+		return "unknown"
+	}
 }
 
-// ParseBackend parses a string into a BackendType, returning an error if
-// the value is not recognised.
+// ParseBackend parses a backend string into a BackendType.
 func ParseBackend(s string) (BackendType, error) {
-	for _, b := range KnownBackends {
-		if string(b) == s {
-			return b, nil
-		}
+	switch strings.ToLower(s) {
+	case "1password":
+		return Backend1Password, nil
+	case "doppler":
+		return BackendDoppler, nil
+	case "vault":
+		return BackendVault, nil
+	case "bitwarden":
+		return BackendBitwarden, nil
+	case "dry-run":
+		return BackendDryRun, nil
+	default:
+		return 0, fmt.Errorf("unknown backend %q: must be one of %s", s, strings.Join(KnownBackends, ", "))
 	}
-	return "", fmt.Errorf("unknown backend %q: must be one of 1password, doppler, vault", s)
 }
