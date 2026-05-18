@@ -1,36 +1,35 @@
 package migrate
 
-// SecretWriter is the interface that wraps secret writing operations.
-// Any backend (1Password, Doppler, etc.) must implement this to be used
-// as a migration target.
-type SecretWriter interface {
-	// WriteSecrets writes all key-value pairs for a given namespace/group.
-	WriteSecrets(namespace string, secrets map[string]string) error
-}
+import "fmt"
 
-// SecretReader is the interface for reading secrets from a source backend.
-type SecretReader interface {
-	// ListNamespaces returns all available namespace names.
-	ListNamespaces() ([]string, error)
-
-	// ReadSecrets returns all key-value pairs for a given namespace.
-	ReadSecrets(namespace string) (map[string]string, error)
-}
-
-// BackendType enumerates supported destination backends.
+// BackendType identifies a supported secret backend.
 type BackendType string
 
 const (
 	Backend1Password BackendType = "1password"
 	BackendDoppler   BackendType = "doppler"
+	BackendVault     BackendType = "vault"
 )
 
-// String returns the string representation of a BackendType.
+// String returns the string representation of the backend type.
 func (b BackendType) String() string {
 	return string(b)
 }
 
-// KnownBackends returns all supported backend identifiers.
-func KnownBackends() []BackendType {
-	return []BackendType{Backend1Password, BackendDoppler}
+// KnownBackends lists all supported backend identifiers.
+var KnownBackends = []BackendType{
+	Backend1Password,
+	BackendDoppler,
+	BackendVault,
+}
+
+// ParseBackend parses a string into a BackendType, returning an error if
+// the value is not recognised.
+func ParseBackend(s string) (BackendType, error) {
+	for _, b := range KnownBackends {
+		if string(b) == s {
+			return b, nil
+		}
+	}
+	return "", fmt.Errorf("unknown backend %q: must be one of 1password, doppler, vault", s)
 }
