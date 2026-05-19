@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// BackendType represents a supported secret backend.
+// BackendType identifies a supported secret backend.
 type BackendType int
 
 const (
@@ -13,11 +13,19 @@ const (
 	BackendDoppler
 	BackendVault
 	BackendBitwarden
-	BackendDryRun
+	BackendAWSSecretsManager
+	BackendGCPSecretManager
 )
 
-// KnownBackends lists all supported backend identifiers.
-var KnownBackends = []string{"1password", "doppler", "vault", "bitwarden", "dry-run"}
+// KnownBackends is the list of all supported backends.
+var KnownBackends = []BackendType{
+	Backend1Password,
+	BackendDoppler,
+	BackendVault,
+	BackendBitwarden,
+	BackendAWSSecretsManager,
+	BackendGCPSecretManager,
+}
 
 func (b BackendType) String() string {
 	switch b {
@@ -29,27 +37,29 @@ func (b BackendType) String() string {
 		return "vault"
 	case BackendBitwarden:
 		return "bitwarden"
-	case BackendDryRun:
-		return "dry-run"
+	case BackendAWSSecretsManager:
+		return "awssecretsmanager"
+	case BackendGCPSecretManager:
+		return "gcpsecretmanager"
 	default:
 		return "unknown"
 	}
 }
 
-// ParseBackend parses a backend string into a BackendType.
+// ParseBackend converts a string to a BackendType.
 func ParseBackend(s string) (BackendType, error) {
-	switch strings.ToLower(s) {
-	case "1password":
-		return Backend1Password, nil
-	case "doppler":
-		return BackendDoppler, nil
-	case "vault":
-		return BackendVault, nil
-	case "bitwarden":
-		return BackendBitwarden, nil
-	case "dry-run":
-		return BackendDryRun, nil
-	default:
-		return 0, fmt.Errorf("unknown backend %q: must be one of %s", s, strings.Join(KnownBackends, ", "))
+	for _, b := range KnownBackends {
+		if strings.EqualFold(b.String(), s) {
+			return b, nil
+		}
 	}
+	return 0, fmt.Errorf("unknown backend %q: must be one of %s", s, joinBackendNames())
+}
+
+func joinBackendNames() string {
+	names := make([]string, len(KnownBackends))
+	for i, b := range KnownBackends {
+		names[i] = b.String()
+	}
+	return strings.Join(names, ", ")
 }
