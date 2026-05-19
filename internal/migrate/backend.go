@@ -3,57 +3,71 @@ package migrate
 import (
 	"fmt"
 	"strings"
+
+	"github.com/envchain-export/internal/awssecretsmanager"
+	"github.com/envchain-export/internal/azurekeyvault"
+	"github.com/envchain-export/internal/bitwarden"
+	"github.com/envchain-export/internal/doppler"
+	"github.com/envchain-export/internal/gcpsecretmanager"
+	"github.com/envchain-export/internal/onepassword"
+	"github.com/envchain-export/internal/vault"
 )
 
 // BackendType identifies a supported secret backend.
-type BackendType int
+type BackendType string
 
 const (
-	Backend1Password BackendType = iota
-	BackendDoppler
-	BackendVault
-	BackendBitwarden
-	BackendAWSSecretsManager
-	BackendGCPSecretManager
+	Backend1Password    BackendType = "1password"
+	BackendDoppler      BackendType = "doppler"
+	BackendVault        BackendType = "vault"
+	BackendBitwarden    BackendType = "bitwarden"
+	BackendAWSSecrets   BackendType = "aws-secrets-manager"
+	BackendGCPSecrets   BackendType = "gcp-secret-manager"
+	BackendAzureKeyVault BackendType = "azure-keyvault"
+	BackendDryRun       BackendType = "dry-run"
 )
 
-// KnownBackends is the list of all supported backends.
+// KnownBackends lists all supported backend identifiers.
 var KnownBackends = []BackendType{
 	Backend1Password,
 	BackendDoppler,
 	BackendVault,
 	BackendBitwarden,
-	BackendAWSSecretsManager,
-	BackendGCPSecretManager,
+	BackendAWSSecrets,
+	BackendGCPSecrets,
+	BackendAzureKeyVault,
+	BackendDryRun,
 }
 
-func (b BackendType) String() string {
-	switch b {
+func (b BackendType) String() string { return string(b) }
+
+// SecretWriter is the interface all backend writers must satisfy.
+type SecretWriter interface {
+	WriteSecret(namespace, key, value string) error
+}
+
+// ParseBackend resolves a backend name and optional target string into a SecretWriter.
+func ParseBackend(name, target string) (SecretWriter, error) {
+	switch BackendType(name) {
 	case Backend1Password:
-		return "1password"
+		return onepassword.NewWriter(target), nil
 	case BackendDoppler:
-		return "doppler"
+		return doppler.NewWriter(target), nil
 	case BackendVault:
-		return "vault"
+		return vault.NewWriter(target), nil
 	case BackendBitwarden:
-		return "bitwarden"
-	case BackendAWSSecretsManager:
-		return "awssecretsmanager"
-	case BackendGCPSecretManager:
-		return "gcpsecretmanager"
+		return bitwarden.NewWriter(target, "", ""), nil
+	case BackendAWSSecrets:
+		return awssecretsmanager.NewWriter(target), nil
+	case BackendGCPSecrets:
+		return gcpsecretmanager.NewWriter(target), nil
+	case BackendAzureKeyVault:
+		return azurekeyvault.NewWriter(target), nil
+	case BackendDryRun:
+		return NewDryRunWriter(), nil
 	default:
-		return "unknown"
+		return nil, fmt.Errorf("unknown backend %q: supported backends are %s", name, joinBackendNames())
 	}
-}
-
-// ParseBackend converts a string to a BackendType.
-func ParseBackend(s string) (BackendType, error) {
-	for _, b := range KnownBackends {
-		if strings.EqualFold(b.String(), s) {
-			return b, nil
-		}
-	}
-	return 0, fmt.Errorf("unknown backend %q: must be one of %s", s, joinBackendNames())
 }
 
 func joinBackendNames() string {
