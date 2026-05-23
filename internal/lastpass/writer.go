@@ -25,9 +25,17 @@ func NewWriter(group string) *Writer {
 	}
 }
 
-// WriteSecret stores a secret in LastPass under "<group>/<namespace>" with
+// WriteSecret stores a secret in LastPass under "<group>/<namespace>/<key>" with
 // the given key set as the note field and value as the password.
+// Returns an error if the lpass CLI is not available or the operation fails.
 func (w *Writer) WriteSecret(namespace, key, value string) error {
+	if namespace == "" {
+		return fmt.Errorf("namespace must not be empty")
+	}
+	if key == "" {
+		return fmt.Errorf("key must not be empty")
+	}
+
 	itemName := w.itemName(namespace)
 
 	// lpass add --non-interactive --name <name> expects input via stdin;
