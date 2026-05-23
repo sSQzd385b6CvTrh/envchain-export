@@ -42,21 +42,12 @@ func main() {
 	} else {
 		b, err := migrate.ParseBackend(*backendFlag)
 		if err != nil {
-			log.Fatalf("invalid backend: %v", err)
+			log.Fatalf("invalid backend: %v\nAvailable backends: %s", err, joinBackends())
 		}
-		switch b {
-		case migrate.Backend1Password:
-			writer = onepassword.NewWriter(*opVault)
-		case migrate.BackendDoppler:
-			writer = doppler.NewWriter(*dopplerProject, *dopplerConfig)
-		case migrate.BackendVault:
-			writer = vault.NewWriter()
-		case migrate.BackendBitwarden:
-			writer = bitwarden.NewWriter(*bwOrg, *bwCollection)
-		case migrate.BackendAWSSecretsManager:
-			writer = awssecretsmanager.NewWriter(*awsRegion)
-		case migrate.BackendGCPSecretManager:
-			writer = gcpsecretmanager.NewWriter(*gcpProject)
+		var initErr error
+		writer, initErr = buildWriter(b, *opVault, *dopplerProject, *dopplerConfig, *gcpProject, *awsRegion, *bwOrg, *bwCollection)
+		if initErr != nil {
+			log.Fatalf("failed to initialise backend %q: %v", b, initErr)
 		}
 	}
 
@@ -66,6 +57,39 @@ func main() {
 		log.Fatalf("migration failed: %v", err)
 	}
 	fmt.Printf("Migration complete: %d succeeded, %d failed\n", summary.Succeeded, summary.Failed)
+}
+
+// buildWriter constructs the appropriate SecretWriter for the given backend,
+// returning an error if required backend-specific flags are missing.
+func buildWriter(b migrate.Backend, opVault, dopplerProject, dopplerConfig, gcpProject, awsRegion, bwOrg, bwCollection string) (migrate.SecretWriter, error) {
+	switch b {
+	case migrate.Backend1Password:
+		if opVault == "" {
+			return nil, fmt.Errorf("--op-vault is required for the 1password backend")
+		}
+		return onepassword.NewWriter(opVault), nil
+	case migrate.BackendDoppler:
+		if dopplerProject == "" || dopplerConfig == "" {
+			return nil, fmt.Errorf("--doppler-project and --doppler-config are required for the doppler backend")
+		}
+		return doppler.NewWriter(dopplerProject, dopplerConfig), nil
+	case migrate.BackendVault:
+		return vault.NewWriter(), nil
+	case migrate.BackendBitwarden:
+		if bwOrg == "" || bwCollection == "" {
+			return nil, fmt.Errorf("--bw-org and --bw-collection are required for the bitwarden backend")
+		}
+		return bitwarden.NewWriter(bwOrg, bwCollection), nil
+	case migrate.BackendAWSSecretsManager:
+		return awssecretsmanager.NewWriter(awsRegion), nil
+	case migrate.BackendGCPSecretManager:
+		if gcpProject == "" {
+			return nil, fmt.Errorf("--gcp-project is required for the gcpsecretmanager backend")
+		}
+		return gcpsecretmanager.NewWriter(gcpProject), nil
+	default:
+		return nil, fmt.Errorf("unhandled backend %q", b)
+	}
 }
 
 func joinBackends() string {
