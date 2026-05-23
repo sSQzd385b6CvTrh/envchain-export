@@ -4,78 +4,100 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/envchain-export/internal/age"
-	"github.com/envchain-export/internal/akeyless"
-	"github.com/envchain-export/internal/awssecretsmanager"
-	"github.com/envchain-export/internal/azurekeyvault"
-	"github.com/envchain-export/internal/bitwarden"
-	"github.com/envchain-export/internal/doppler"
-	"github.com/envchain-export/internal/gcpsecretmanager"
-	"github.com/envchain-export/internal/gopass"
-	"github.com/envchain-export/internal/hashicorpvault"
-	"github.com/envchain-export/internal/infisical"
-	"github.com/envchain-export/internal/keepass"
-	"github.com/envchain-export/internal/keychain"
-	"github.com/envchain-export/internal/lastpass"
-	"github.com/envchain-export/internal/onepassword"
-	"github.com/envchain-export/internal/passbolt"
-	"github.com/envchain-export/internal/secrethub"
-	"github.com/envchain-export/internal/ssmparameterstore"
-	"github.com/envchain-export/internal/vault"
+	"github.com/nicholasgasior/envchain-export/internal/akeyless"
+	"github.com/nicholasgasior/envchain-export/internal/age"
+	"github.com/nicholasgasior/envchain-export/internal/awssecretsmanager"
+	"github.com/nicholasgasior/envchain-export/internal/azurekeyvault"
+	"github.com/nicholasgasior/envchain-export/internal/bitwarden"
+	"github.com/nicholasgasior/envchain-export/internal/conjur"
+	"github.com/nicholasgasior/envchain-export/internal/doppler"
+	"github.com/nicholasgasior/envchain-export/internal/enpass"
+	"github.com/nicholasgasior/envchain-export/internal/gcpsecretmanager"
+	"github.com/nicholasgasior/envchain-export/internal/gopass"
+	"github.com/nicholasgasior/envchain-export/internal/hashicorpvault"
+	"github.com/nicholasgasior/envchain-export/internal/infisical"
+	"github.com/nicholasgasior/envchain-export/internal/keepass"
+	"github.com/nicholasgasior/envchain-export/internal/keychain"
+	"github.com/nicholasgasior/envchain-export/internal/lastpass"
+	"github.com/nicholasgasior/envchain-export/internal/onepassword"
+	"github.com/nicholasgasior/envchain-export/internal/passbolt"
+	"github.com/nicholasgasior/envchain-export/internal/secrethub"
+	"github.com/nicholasgasior/envchain-export/internal/ssmparameterstore"
+	"github.com/nicholasgasior/envchain-export/internal/vault"
 )
 
 // BackendType represents a supported secret backend.
-type BackendType string
+type BackendType int
 
 const (
-	Backend1Password     BackendType = "1password"
-	BackendDoppler       BackendType = "doppler"
-	BackendVault         BackendType = "vault"
-	BackendBitwarden     BackendType = "bitwarden"
-	BackendAWSSecrets    BackendType = "awssecretsmanager"
-	BackendGCPSecret     BackendType = "gcpsecretmanager"
-	BackendAzureKeyVault BackendType = "azurekeyvault"
-	BackendLastPass      BackendType = "lastpass"
-	BackendKeychain      BackendType = "keychain"
-	BackendGopass        BackendType = "gopass"
-	BackendInfisical     BackendType = "infisical"
-	BackendHashiCorpVault BackendType = "hashicorpvault"
-	BackendSecretHub     BackendType = "secrethub"
-	BackendSSMParameter  BackendType = "ssmparameterstore"
-	BackendAkeyless      BackendType = "akeyless"
-	BackendKeePass       BackendType = "keepass"
-	BackendAge           BackendType = "age"
-	BackendPassbolt      BackendType = "passbolt"
-	BackendDryRun        BackendType = "dryrun"
+	Backend1Password BackendType = iota
+	BackendDoppler
+	BackendVault
+	BackendAWSSecretsManager
+	BackendGCPSecretManager
+	BackendAzureKeyVault
+	BackendLastPass
+	BackendKeychain
+	BackendGopass
+	BackendInfisical
+	BackendHashiCorpVault
+	BackendSecretHub
+	BackendSSMParameterStore
+	BackendAkeyless
+	BackendKeePass
+	BackendAge
+	BackendPassbolt
+	BackendConjur
+	BackendBitwarden
+	BackendEnpass
 )
 
-var knownBackends = []BackendType{
-	Backend1Password, BackendDoppler, BackendVault, BackendBitwarden,
-	BackendAWSSecrets, BackendGCPSecret, BackendAzureKeyVault, BackendLastPass,
-	BackendKeychain, BackendGopass, BackendInfisical, BackendHashiCorpVault,
-	BackendSecretHub, BackendSSMParameter, BackendAkeyless, BackendKeePass,
-	BackendAge, BackendPassbolt, BackendDryRun,
+var backendNames = map[BackendType]string{
+	Backend1Password:         "1password",
+	BackendDoppler:           "doppler",
+	BackendVault:             "vault",
+	BackendAWSSecretsManager: "aws-secrets-manager",
+	BackendGCPSecretManager:  "gcp-secret-manager",
+	BackendAzureKeyVault:     "azure-key-vault",
+	BackendLastPass:          "lastpass",
+	BackendKeychain:          "keychain",
+	BackendGopass:            "gopass",
+	BackendInfisical:         "infisical",
+	BackendHashiCorpVault:    "hashicorp-vault",
+	BackendSecretHub:         "secrethub",
+	BackendSSMParameterStore: "ssm-parameter-store",
+	BackendAkeyless:          "akeyless",
+	BackendKeePass:           "keepass",
+	BackendAge:               "age",
+	BackendPassbolt:          "passbolt",
+	BackendConjur:            "conjur",
+	BackendBitwarden:         "bitwarden",
+	BackendEnpass:            "enpass",
 }
 
-func (b BackendType) String() string { return string(b) }
+func (b BackendType) String() string {
+	if name, ok := backendNames[b]; ok {
+		return name
+	}
+	return fmt.Sprintf("unknown(%d)", int(b))
+}
 
-// joinBackendNames returns a comma-separated list of known backend names.
 func joinBackendNames() string {
-	names := make([]string, len(knownBackends))
-	for i, b := range knownBackends {
-		names[i] = b.String()
+	names := make([]string, 0, len(backendNames))
+	for _, name := range backendNames {
+		names = append(names, name)
 	}
 	return strings.Join(names, ", ")
 }
 
-// ParseBackend parses a string into a BackendType.
-func ParseBackend(s string) (BackendType, error) {
-	for _, b := range knownBackends {
-		if strings.EqualFold(s, b.String()) {
-			return b, nil
+// ParseBackend parses a backend name string into a BackendType.
+func ParseBackend(name string) (BackendType, error) {
+	for bt, n := range backendNames {
+		if strings.EqualFold(n, name) {
+			return bt, nil
 		}
 	}
-	return "", fmt.Errorf("unknown backend %q; known backends: %s", s, joinBackendNames())
+	return 0, fmt.Errorf("unknown backend %q; supported: %s", name, joinBackendNames())
 }
 
 // SecretWriter is the interface implemented by all backend writers.
@@ -83,48 +105,50 @@ type SecretWriter interface {
 	WriteSecret(namespace, key, value string) error
 }
 
-// NewBackendWriter constructs the appropriate SecretWriter for the given backend.
-func NewBackendWriter(b BackendType, opts map[string]string) (SecretWriter, error) {
-	switch b {
+// NewBackendWriter constructs the appropriate writer for the given backend.
+func NewBackendWriter(bt BackendType, flags map[string]string) (SecretWriter, error) {
+	switch bt {
 	case Backend1Password:
-		return onepassword.NewWriter(opts["vault"]), nil
+		return onepassword.NewWriter(flags["vault"]), nil
 	case BackendDoppler:
-		return doppler.NewWriter(opts["project"], opts["config"]), nil
+		return doppler.NewWriter(flags["project"], flags["config"]), nil
 	case BackendVault:
-		return vault.NewWriter(opts["path"]), nil
-	case BackendBitwarden:
-		return bitwarden.NewWriter(opts["org"], opts["collection"]), nil
-	case BackendAWSSecrets:
-		return awssecretsmanager.NewWriter(opts["region"]), nil
-	case BackendGCPSecret:
-		return gcpsecretmanager.NewWriter(opts["project"]), nil
+		return vault.NewWriter(flags["path"]), nil
+	case BackendAWSSecretsManager:
+		return awssecretsmanager.NewWriter(flags["region"]), nil
+	case BackendGCPSecretManager:
+		return gcpsecretmanager.NewWriter(flags["project"]), nil
 	case BackendAzureKeyVault:
-		return azurekeyvault.NewWriter(opts["vault"]), nil
+		return azurekeyvault.NewWriter(flags["vault"]), nil
 	case BackendLastPass:
-		return lastpass.NewWriter(opts["folder"]), nil
+		return lastpass.NewWriter(flags["folder"]), nil
 	case BackendKeychain:
 		return keychain.NewWriter(), nil
 	case BackendGopass:
-		return gopass.NewWriter(opts["store"]), nil
+		return gopass.NewWriter(flags["store"]), nil
 	case BackendInfisical:
-		return infisical.NewWriter(opts["project"], opts["env"]), nil
+		return infisical.NewWriter(flags["project"], flags["env"]), nil
 	case BackendHashiCorpVault:
-		return hashicorpvault.NewWriter(opts["addr"], opts["path"]), nil
+		return hashicorpvault.NewWriter(flags["addr"], flags["path"]), nil
 	case BackendSecretHub:
-		return secrethub.NewWriter(opts["org"], opts["repo"]), nil
-	case BackendSSMParameter:
-		return ssmparameterstore.NewWriter(opts["region"], opts["prefix"]), nil
+		return secrethub.NewWriter(flags["org"], flags["repo"]), nil
+	case BackendSSMParameterStore:
+		return ssmparameterstore.NewWriter(flags["region"], flags["prefix"]), nil
 	case BackendAkeyless:
-		return akeyless.NewWriter(opts["path"]), nil
+		return akeyless.NewWriter(flags["path"]), nil
 	case BackendKeePass:
-		return keepass.NewWriter(opts["db"], opts["group"]), nil
+		return keepass.NewWriter(flags["db"], flags["password"]), nil
 	case BackendAge:
-		return age.NewWriter(opts["recipient"], opts["output"]), nil
+		return age.NewWriter(flags["recipient"], flags["output"]), nil
 	case BackendPassbolt:
-		return passbolt.NewWriter(opts["group"]), nil
-	case BackendDryRun:
-		return NewDryRunWriter(), nil
+		return passbolt.NewWriter(flags["group"]), nil
+	case BackendConjur:
+		return conjur.NewWriter(flags["account"], flags["path"]), nil
+	case BackendBitwarden:
+		return bitwarden.NewWriter(flags["org"], flags["collection"]), nil
+	case BackendEnpass:
+		return enpass.NewWriter(flags["vault"]), nil
 	default:
-		return nil, fmt.Errorf("no writer registered for backend %q", b)
+		return nil, fmt.Errorf("no writer implemented for backend %s", bt)
 	}
 }

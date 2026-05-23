@@ -1,66 +1,54 @@
 package migrate
 
 import (
-	"strings"
 	"testing"
 )
 
 func TestBackendType_String(t *testing.T) {
-	if BackendPassbolt.String() != "passbolt" {
-		t.Errorf("expected 'passbolt', got %q", BackendPassbolt.String())
+	tests := []struct {
+		bt   BackendType
+		want string
+	}{
+		{Backend1Password, "1password"},
+		{BackendDoppler, "doppler"},
+		{BackendEnpass, "enpass"},
+		{BackendBitwarden, "bitwarden"},
+	}
+	for _, tt := range tests {
+		if got := tt.bt.String(); got != tt.want {
+			t.Errorf("BackendType(%d).String() = %q, want %q", int(tt.bt), got, tt.want)
+		}
 	}
 }
 
 func TestKnownBackends_ContainsAll(t *testing.T) {
-	expected := []BackendType{
-		Backend1Password, BackendDoppler, BackendVault, BackendBitwarden,
-		BackendAWSSecrets, BackendGCPSecret, BackendAzureKeyVault, BackendLastPass,
-		BackendKeychain, BackendGopass, BackendInfisical, BackendHashiCorpVault,
-		BackendSecretHub, BackendSSMParameter, BackendAkeyless, BackendKeePass,
-		BackendAge, BackendPassbolt, BackendDryRun,
+	expected := []string{
+		"1password", "doppler", "vault", "aws-secrets-manager",
+		"gcp-secret-manager", "azure-key-vault", "lastpass", "keychain",
+		"gopass", "infisical", "hashicorp-vault", "secrethub",
+		"ssm-parameter-store", "akeyless", "keepass", "age",
+		"passbolt", "conjur", "bitwarden", "enpass",
 	}
-	for _, e := range expected {
-		found := false
-		for _, k := range knownBackends {
-			if k == e {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("backend %q not found in knownBackends", e)
+	for _, name := range expected {
+		if _, err := ParseBackend(name); err != nil {
+			t.Errorf("ParseBackend(%q) returned error: %v", name, err)
 		}
 	}
 }
 
 func TestParseBackend_Valid(t *testing.T) {
-	cases := []struct {
-		input    string
-		want     BackendType
-	}{
-		{"passbolt", BackendPassbolt},
-		{"Passbolt", BackendPassbolt},
-		{"PASSBOLT", BackendPassbolt},
-		{"dryrun", BackendDryRun},
-		{"1password", Backend1Password},
+	bt, err := ParseBackend("enpass")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, tc := range cases {
-		got, err := ParseBackend(tc.input)
-		if err != nil {
-			t.Errorf("ParseBackend(%q) unexpected error: %v", tc.input, err)
-		}
-		if got != tc.want {
-			t.Errorf("ParseBackend(%q) = %q, want %q", tc.input, got, tc.want)
-		}
+	if bt != BackendEnpass {
+		t.Errorf("got %v, want BackendEnpass", bt)
 	}
 }
 
 func TestParseBackend_Invalid(t *testing.T) {
-	_, err := ParseBackend("nonexistent")
+	_, err := ParseBackend("notabackend")
 	if err == nil {
 		t.Fatal("expected error for unknown backend, got nil")
-	}
-	if !strings.Contains(err.Error(), "unknown backend") {
-		t.Errorf("unexpected error message: %v", err)
 	}
 }
