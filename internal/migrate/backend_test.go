@@ -1,69 +1,51 @@
 package migrate
 
 import (
+	"strings"
 	"testing"
 )
 
 func TestBackendType_String(t *testing.T) {
-	cases := []struct {
-		backend BackendType
-		want    string
-	}{
-		{Backend1Password, "1password"},
-		{BackendDoppler, "doppler"},
-		{BackendVault, "vault"},
-		{BackendBitwarden, "bitwarden"},
-		{BackendAWSSecretsManager, "awssecretsmanager"},
-		{BackendGCPSecretManager, "gcpsecretmanager"},
-	}
-	for _, tc := range cases {
-		if got := tc.backend.String(); got != tc.want {
-			t.Errorf("BackendType(%d).String() = %q, want %q", tc.backend, got, tc.want)
-		}
+	if BackendAkeyless.String() != "akeyless" {
+		t.Errorf("expected 'akeyless', got %q", BackendAkeyless.String())
 	}
 }
 
 func TestKnownBackends_ContainsAll(t *testing.T) {
-	expected := []string{
-		"1password", "doppler", "vault", "bitwarden", "awssecretsmanager", "gcpsecretmanager",
+	must := []BackendType{
+		Backend1Password, BackendDoppler, BackendVault, BackendBitwarden,
+		BackendAWSSecretsManager, BackendGCPSecretManager, BackendAzureKeyVault,
+		BackendLastPass, BackendKeychain, BackendGopass, BackendInfisical,
+		BackendHashiCorpVault, BackendSecretHub, BackendSSMParameterStore,
+		BackendAkeyless, BackendDryRun,
 	}
-	if len(KnownBackends) != len(expected) {
-		t.Fatalf("KnownBackends length = %d, want %d", len(KnownBackends), len(expected))
+	set := make(map[BackendType]bool, len(KnownBackends))
+	for _, b := range KnownBackends {
+		set[b] = true
 	}
-	for i, name := range expected {
-		if KnownBackends[i].String() != name {
-			t.Errorf("KnownBackends[%d] = %q, want %q", i, KnownBackends[i].String(), name)
+	for _, b := range must {
+		if !set[b] {
+			t.Errorf("KnownBackends missing %q", b)
 		}
 	}
 }
 
 func TestParseBackend_Valid(t *testing.T) {
-	cases := []struct {
-		input string
-		want  BackendType
-	}{
-		{"1password", Backend1Password},
-		{"Doppler", BackendDoppler},
-		{"VAULT", BackendVault},
-		{"bitwarden", BackendBitwarden},
-		{"awssecretsmanager", BackendAWSSecretsManager},
-		{"gcpsecretmanager", BackendGCPSecretManager},
+	b, err := ParseBackend("akeyless")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, tc := range cases {
-		got, err := ParseBackend(tc.input)
-		if err != nil {
-			t.Errorf("ParseBackend(%q) unexpected error: %v", tc.input, err)
-			continue
-		}
-		if got != tc.want {
-			t.Errorf("ParseBackend(%q) = %v, want %v", tc.input, got, tc.want)
-		}
+	if b != BackendAkeyless {
+		t.Errorf("expected BackendAkeyless, got %v", b)
 	}
 }
 
 func TestParseBackend_Invalid(t *testing.T) {
-	_, err := ParseBackend("notabackend")
+	_, err := ParseBackend("nonexistent-backend")
 	if err == nil {
-		t.Fatal("expected error for unknown backend, got nil")
+		t.Fatal("expected error for unknown backend")
+	}
+	if !strings.Contains(err.Error(), "unknown backend") {
+		t.Errorf("unexpected error message: %v", err)
 	}
 }

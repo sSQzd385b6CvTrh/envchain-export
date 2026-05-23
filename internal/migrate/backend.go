@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/envchain-export/internal/akeyless"
 	"github.com/envchain-export/internal/awssecretsmanager"
 	"github.com/envchain-export/internal/azurekeyvault"
 	"github.com/envchain-export/internal/bitwarden"
@@ -21,74 +22,47 @@ import (
 )
 
 // BackendType identifies a supported secret backend.
-type BackendType int
+type BackendType string
+
+func (b BackendType) String() string { return string(b) }
 
 const (
-	Backend1Password BackendType = iota
-	BackendDoppler
-	BackendVault
-	BackendBitwarden
-	BackendAWSSecretsManager
-	BackendGCPSecretManager
-	BackendAzureKeyVault
-	BackendLastPass
-	BackendKeychain
-	BackendGopass
-	BackendInfisical
-	BackendHashiCorpVault
-	BackendSecretHub
-	BackendSSMParameterStore
+	Backend1Password        BackendType = "1password"
+	BackendDoppler          BackendType = "doppler"
+	BackendVault            BackendType = "vault"
+	BackendBitwarden        BackendType = "bitwarden"
+	BackendAWSSecretsManager BackendType = "aws-secrets-manager"
+	BackendGCPSecretManager BackendType = "gcp-secret-manager"
+	BackendAzureKeyVault    BackendType = "azure-key-vault"
+	BackendLastPass         BackendType = "lastpass"
+	BackendKeychain         BackendType = "keychain"
+	BackendGopass           BackendType = "gopass"
+	BackendInfisical        BackendType = "infisical"
+	BackendHashiCorpVault   BackendType = "hashicorp-vault"
+	BackendSecretHub        BackendType = "secrethub"
+	BackendSSMParameterStore BackendType = "ssm-parameter-store"
+	BackendAkeyless         BackendType = "akeyless"
+	BackendDryRun           BackendType = "dry-run"
 )
 
-var backendNames = map[BackendType]string{
-	Backend1Password:         "1password",
-	BackendDoppler:           "doppler",
-	BackendVault:             "vault",
-	BackendBitwarden:         "bitwarden",
-	BackendAWSSecretsManager: "aws-secrets-manager",
-	BackendGCPSecretManager:  "gcp-secret-manager",
-	BackendAzureKeyVault:     "azure-key-vault",
-	BackendLastPass:          "lastpass",
-	BackendKeychain:          "keychain",
-	BackendGopass:            "gopass",
-	BackendInfisical:         "infisical",
-	BackendHashiCorpVault:    "hashicorp-vault",
-	BackendSecretHub:         "secrethub",
-	BackendSSMParameterStore: "ssm-parameter-store",
-}
-
-func (b BackendType) String() string {
-	if name, ok := backendNames[b]; ok {
-		return name
-	}
-	return "unknown"
-}
-
-// KnownBackends returns all registered backend types.
-func KnownBackends() []BackendType {
-	backends := make([]BackendType, 0, len(backendNames))
-	for b := range backendNames {
-		backends = append(backends, b)
-	}
-	return backends
-}
-
-// ParseBackend parses a backend name string into a BackendType.
-func ParseBackend(name string) (BackendType, error) {
-	for b, n := range backendNames {
-		if strings.EqualFold(n, name) {
-			return b, nil
-		}
-	}
-	return 0, fmt.Errorf("unknown backend %q; available: %s", name, joinBackendNames())
-}
-
-func joinBackendNames() string {
-	names := make([]string, 0, len(backendNames))
-	for _, n := range backendNames {
-		names = append(names, n)
-	}
-	return strings.Join(names, ", ")
+// KnownBackends lists all supported backend identifiers.
+var KnownBackends = []BackendType{
+	Backend1Password,
+	BackendDoppler,
+	BackendVault,
+	BackendBitwarden,
+	BackendAWSSecretsManager,
+	BackendGCPSecretManager,
+	BackendAzureKeyVault,
+	BackendLastPass,
+	BackendKeychain,
+	BackendGopass,
+	BackendInfisical,
+	BackendHashiCorpVault,
+	BackendSecretHub,
+	BackendSSMParameterStore,
+	BackendAkeyless,
+	BackendDryRun,
 }
 
 // SecretWriter is the interface all backend writers must satisfy.
@@ -96,38 +70,60 @@ type SecretWriter interface {
 	WriteSecret(namespace, key, value string) error
 }
 
-// NewBackendWriter constructs a SecretWriter for the given backend using flags.
-func NewBackendWriter(b BackendType, flags map[string]string) (SecretWriter, error) {
+// ParseBackend parses a string into a known BackendType.
+func ParseBackend(s string) (BackendType, error) {
+	for _, b := range KnownBackends {
+		if string(b) == s {
+			return b, nil
+		}
+	}
+	return "", fmt.Errorf("unknown backend %q; known backends: %s", s, joinBackendNames())
+}
+
+func joinBackendNames() string {
+	names := make([]string, len(KnownBackends))
+	for i, b := range KnownBackends {
+		names[i] = string(b)
+	}
+	return strings.Join(names, ", ")
+}
+
+// NewBackendWriter constructs the SecretWriter for the given BackendType.
+func NewBackendWriter(b BackendType, opts map[string]string) (SecretWriter, error) {
 	switch b {
 	case Backend1Password:
-		return onepassword.NewWriter(flags["vault"]), nil
+		return onepassword.NewWriter(opts["vault"]), nil
 	case BackendDoppler:
-		return doppler.NewWriter(flags["project"], flags["config"]), nil
+		return doppler.NewWriter(opts["project"], opts["config"]), nil
 	case BackendVault:
-		return vault.NewWriter(flags["mount"]), nil
+		return vault.NewWriter(opts["path"]), nil
 	case BackendBitwarden:
-		return bitwarden.NewWriter(flags["org"], flags["collection"]), nil
+		return bitwarden.NewWriter(opts["org"], opts["collection"]), nil
 	case BackendAWSSecretsManager:
-		return awssecretsmanager.NewWriter(flags["prefix"]), nil
+		return awssecretsmanager.NewWriter(opts["region"]), nil
 	case BackendGCPSecretManager:
-		return gcpsecretmanager.NewWriter(flags["project"]), nil
+		return gcpsecretmanager.NewWriter(opts["project"]), nil
 	case BackendAzureKeyVault:
-		return azurekeyvault.NewWriter(flags["vault"]), nil
+		return azurekeyvault.NewWriter(opts["vault"]), nil
 	case BackendLastPass:
-		return lastpass.NewWriter(flags["folder"]), nil
+		return lastpass.NewWriter(opts["folder"]), nil
 	case BackendKeychain:
 		return keychain.NewWriter(), nil
 	case BackendGopass:
-		return gopass.NewWriter(flags["store"]), nil
+		return gopass.NewWriter(opts["store"]), nil
 	case BackendInfisical:
-		return infisical.NewWriter(flags["project"], flags["env"]), nil
+		return infisical.NewWriter(opts["project"], opts["env"]), nil
 	case BackendHashiCorpVault:
-		return hashicorpvault.NewWriter(flags["addr"], flags["mount"]), nil
+		return hashicorpvault.NewWriter(opts["addr"], opts["mount"]), nil
 	case BackendSecretHub:
-		return secrethub.NewWriter(flags["org"], flags["repo"]), nil
+		return secrethub.NewWriter(opts["org"], opts["repo"]), nil
 	case BackendSSMParameterStore:
-		return ssmparameterstore.NewWriter(flags["path"], flags["kms-key-id"]), nil
+		return ssmparameterstore.NewWriter(opts["region"], opts["prefix"]), nil
+	case BackendAkeyless:
+		return akeyless.NewWriter(), nil
+	case BackendDryRun:
+		return NewDryRunWriter(), nil
 	default:
-		return nil, fmt.Errorf("no writer registered for backend %s", b)
+		return nil, fmt.Errorf("no writer registered for backend %q", b)
 	}
 }
